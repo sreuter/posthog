@@ -1559,6 +1559,8 @@ export interface EndpointRequest {
     query?: HogQLQuery | InsightQueryNode
     is_active?: boolean
     cache_age_seconds?: number
+    is_materialized?: boolean
+    sync_frequency?: 'hourly' | 'daily' | 'weekly'
 }
 
 export interface EndpointRunRequest {

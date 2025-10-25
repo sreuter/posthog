@@ -14,8 +14,11 @@ export interface EndpointSceneHeaderProps {
 
 export const EndpointSceneHeader = ({ tabId }: EndpointSceneHeaderProps): JSX.Element => {
     const { endpoint, endpointLoading, localQuery } = useValues(endpointSceneLogic({ tabId }))
-    const { endpointName, endpointDescription, cacheAge } = useValues(endpointLogic({ tabId }))
-    const { setEndpointDescription, updateEndpoint, createEndpoint, setCacheAge } = useActions(endpointLogic({ tabId }))
+    const { endpointName, endpointDescription, cacheAge, syncFrequency, isMaterialized } = useValues(
+        endpointLogic({ tabId })
+    )
+    const { setEndpointDescription, updateEndpoint, createEndpoint, setCacheAge, setSyncFrequency, setIsMaterialized } =
+        useActions(endpointLogic({ tabId }))
     const { setLocalQuery } = useActions(endpointSceneLogic({ tabId }))
 
     const isNewEndpoint = !endpoint?.name || endpoint.name === 'new-endpoint'
@@ -24,7 +27,15 @@ export const EndpointSceneHeader = ({ tabId }: EndpointSceneHeaderProps): JSX.El
     const hasDescriptionChange = endpointDescription !== null && endpointDescription !== endpoint?.description
     const hasQueryChange = localQuery !== null
     const hasCacheAgeChange = cacheAge !== (endpoint?.cache_age_seconds ?? null)
-    const hasChanges = hasNameChange || hasDescriptionChange || hasQueryChange || hasCacheAgeChange
+    const hasSyncFrequencyChange = syncFrequency !== (endpoint?.materialization?.sync_frequency ?? null)
+    const hasIsMaterializedChange = isMaterialized !== null && isMaterialized !== endpoint?.is_materialized
+    const hasChanges =
+        hasNameChange ||
+        hasDescriptionChange ||
+        hasQueryChange ||
+        hasCacheAgeChange ||
+        hasSyncFrequencyChange ||
+        hasIsMaterializedChange
 
     const handleSave = (): void => {
         let queryToSave = (localQuery || endpoint?.query) as any
@@ -44,6 +55,8 @@ export const EndpointSceneHeader = ({ tabId }: EndpointSceneHeaderProps): JSX.El
                 name: endpointName || endpoint?.name,
                 description: endpointDescription || endpoint?.description,
                 cache_age_seconds: cacheAge ?? undefined,
+                sync_frequency: syncFrequency ?? undefined,
+                is_materialized: isMaterialized ?? undefined,
                 query: queryToSave,
             })
         }
@@ -53,6 +66,8 @@ export const EndpointSceneHeader = ({ tabId }: EndpointSceneHeaderProps): JSX.El
         if (endpoint) {
             setEndpointDescription(endpoint.description || '')
             setCacheAge(endpoint.cache_age_seconds ?? null)
+            setSyncFrequency(endpoint.materialization?.sync_frequency ?? null)
+            setIsMaterialized(null)
         }
         setLocalQuery(null)
     }

@@ -2151,6 +2151,17 @@ export interface EndpointType extends WithAccessControl {
     _highlight?: boolean
     /** Last execution time from ClickHouse query_log table */
     last_executed_at?: string
+    /** Whether this endpoint's query results are materialized to S3 */
+    is_materialized: boolean
+    /** Materialization metadata */
+    materialization?: {
+        status?: string
+        last_materialized_at?: string
+        error?: string
+        can_materialize: boolean
+        reason?: string
+        sync_frequency?: 'hourly' | 'daily' | 'weekly' | null
+    }
 }
 
 export interface DashboardBasicType extends WithAccessControl {

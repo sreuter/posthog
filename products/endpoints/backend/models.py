@@ -62,6 +62,19 @@ class Endpoint(CreatedMetaFields, UpdatedMetaFields, UUIDTModel):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    # Materialization fields
+    is_materialized = models.BooleanField(
+        default=False, help_text="Whether this endpoint's query results are materialized to S3"
+    )
+    materialized_query = models.ForeignKey(
+        "posthog.DataWarehouseSavedQuery",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="endpoints",
+        help_text="The underlying materialized view that backs this endpoint",
+    )
+
     class Meta:
         constraints = [
             models.UniqueConstraint(
@@ -101,3 +114,24 @@ class Endpoint(CreatedMetaFields, UpdatedMetaFields, UUIDTModel):
         """
         # TODO: Implement parameter validation logic
         pass
+
+    @property
+    def materialization_status(self) -> str:
+        """Get status from materialized_query."""
+        if not self.materialized_query:
+            return "not_materialized"
+        return self.materialized_query.status
+
+    @property
+    def last_materialized_at(self):
+        """Get last run time from materialized_query."""
+        if not self.materialized_query:
+            return None
+        return self.materialized_query.last_run_at
+
+    @property
+    def materialization_error(self) -> str:
+        """Get error from materialized_query."""
+        if not self.materialized_query:
+            return ""
+        return self.materialized_query.latest_error or ""

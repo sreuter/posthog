@@ -1063,6 +1063,12 @@ class EndpointLastExecutionTimesRequest(BaseModel):
     names: list[str]
 
 
+class SyncFrequency(StrEnum):
+    HOURLY = "hourly"
+    DAILY = "daily"
+    WEEKLY = "weekly"
+
+
 class EntityType(StrEnum):
     ACTIONS = "actions"
     EVENTS = "events"
@@ -14767,10 +14773,12 @@ class EndpointRequest(BaseModel):
     cache_age_seconds: Optional[float] = None
     description: Optional[str] = None
     is_active: Optional[bool] = None
+    is_materialized: Optional[bool] = None
     name: Optional[str] = None
     query: Optional[
         Union[HogQLQuery, Union[TrendsQuery, FunnelsQuery, RetentionQuery, PathsQuery, StickinessQuery, LifecycleQuery]]
     ] = None
+    sync_frequency: Optional[SyncFrequency] = None
 
 
 class FunnelCorrelationActorsQuery(BaseModel):

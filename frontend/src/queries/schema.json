@@ -10602,6 +10602,9 @@
                 "is_active": {
                     "type": "boolean"
                 },
+                "is_materialized": {
+                    "type": "boolean"
+                },
                 "name": {
                     "type": "string"
                 },
@@ -10614,6 +10617,10 @@
                             "$ref": "#/definitions/InsightQueryNode"
                         }
                     ]
+                },
+                "sync_frequency": {
+                    "enum": ["hourly", "daily", "weekly"],
+                    "type": "string"
                 }
             },
             "type": "object"
