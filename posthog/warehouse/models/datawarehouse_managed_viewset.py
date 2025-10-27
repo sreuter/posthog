@@ -23,6 +23,8 @@ from posthog.models.utils import CreatedMetaFields, UpdatedMetaFields, UUIDTMode
 from posthog.warehouse.models.datawarehouse_saved_query import DataWarehouseSavedQuery
 from posthog.warehouse.types import DataWarehouseManagedViewSetKind
 
+from products.revenue_analytics.backend.views.schemas import SCHEMAS as REVENUE_ANALYTICS_SCHEMAS
+
 logger = structlog.get_logger(__name__)
 
 
@@ -45,6 +47,13 @@ class DataWarehouseManagedViewSet(CreatedMetaFields, UpdatedMetaFields, UUIDTMod
             )
         ]
 
+    class UnsupportedViewsetKind(ValueError):
+        kind: DataWarehouseManagedViewSetKind
+
+        def __init__(self, kind: DataWarehouseManagedViewSetKind):
+            self.kind = kind
+            super().__init__("Unsupported viewset kind: {self.kind}")
+
     def __str__(self) -> str:
         return f"DataWarehouseManagedViewSet({self.kind}) for Team {self.team.id}"
 
@@ -64,7 +73,7 @@ class DataWarehouseManagedViewSet(CreatedMetaFields, UpdatedMetaFields, UUIDTMod
         if self.kind == DataWarehouseManagedViewSetKind.REVENUE_ANALYTICS:
             expected_views = self._get_expected_views_for_revenue_analytics()
         else:
-            raise ValueError(f"Unsupported viewset kind: {self.kind}")
+            raise DataWarehouseManagedViewSet.UnsupportedViewsetKind(self.kind)
 
         expected_view_names = {view.name for view in expected_views}
 
@@ -175,6 +184,22 @@ class DataWarehouseManagedViewSet(CreatedMetaFields, UpdatedMetaFields, UUIDTMod
 
             self.delete()
         return views_deleted
+
+    def to_saved_query_metadata(self, name: str):
+        if self.kind != DataWarehouseManagedViewSetKind.REVENUE_ANALYTICS:
+            raise DataWarehouseManagedViewSet.UnsupportedViewsetKind(self.kind)
+
+        return {
+            "managed_viewset_kind": self.kind,
+            "revenue_analytics_kind": next(
+                (
+                    schema.kind
+                    for schema in REVENUE_ANALYTICS_SCHEMAS.values()
+                    if name.endswith(schema.events_suffix) or name.endswith(schema.source_suffix)
+                ),
+                None,
+            ),
+        }
 
     def _get_expected_views_for_revenue_analytics(self) -> list[ExpectedView]:
         """
