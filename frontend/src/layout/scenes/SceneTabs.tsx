@@ -19,7 +19,7 @@ import { SceneTab } from 'scenes/sceneTypes'
 import { urls } from 'scenes/urls'
 
 import { KeyboardShortcut } from '~/layout/navigation-3000/components/KeyboardShortcut'
-import { iconForType } from '~/layout/panel-layout/ProjectTree/defaultTree'
+import { ProductIconWrapper, iconForType } from '~/layout/panel-layout/ProjectTree/defaultTree'
 import { SceneTabContextMenu } from '~/layout/scenes/SceneTabContextMenu'
 import { FileSystemIconType } from '~/queries/schema/schema-general'
 import { sceneLogic } from '~/scenes/sceneLogic'
@@ -267,7 +267,11 @@ function SceneTabComponent({ tab, className, isDragging }: SceneTabProps): JSX.E
                     }
                     tooltipPlacement="bottom"
                 >
-                    {tab.iconType === 'blank' ? (
+                    {tab.forceIcon ? (
+                        <ProductIconWrapper colorOverride={['var(--color-product-feature-flags-light)']}>
+                            {tab.forceIcon}
+                        </ProductIconWrapper>
+                    ) : tab.iconType === 'blank' ? (
                         <></>
                     ) : tab.iconType === 'loading' ? (
                         <Spinner />

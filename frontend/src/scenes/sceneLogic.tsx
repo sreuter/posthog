@@ -4,7 +4,7 @@ import { BuiltLogic, actions, afterMount, connect, kea, listeners, path, props, 
 import { combineUrl, router, urlToAction } from 'kea-router'
 import { subscriptions } from 'kea-subscriptions'
 import posthog from 'posthog-js'
-import { useEffect, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 
 import { commandBarLogic } from 'lib/components/CommandBar/commandBarLogic'
 import { BarStatus } from 'lib/components/CommandBar/types'
@@ -514,7 +514,10 @@ export const sceneLogic = kea<sceneLogicType>([
             (s) => [
                 // We're effectively passing the selector through to the scene logic, and "recalculating"
                 // this every time it's rendered. Caching will happen within the scene's breadcrumb selector.
-                (state, props): { title: string; iconType: FileSystemIconType | 'loading' | 'blank' } => {
+                (
+                    state,
+                    props
+                ): { title: string; iconType: FileSystemIconType | 'loading' | 'blank'; forceIcon?: JSX.Element } => {
                     const activeSceneLogic = sceneLogic.selectors.activeSceneLogic(state, props)
                     const activeExportedScene = sceneLogic.selectors.activeExportedScene(state, props)
                     if (activeSceneLogic && 'breadcrumbs' in activeSceneLogic.selectors) {
@@ -527,6 +530,7 @@ export const sceneLogic = kea<sceneLogicType>([
                             return {
                                 title: bc.length > 0 ? bc[bc.length - 1].name : '...',
                                 iconType: bc.length > 0 ? bc[bc.length - 1].iconType : 'blank',
+                                forceIcon: bc.length > 0 ? bc[bc.length - 1].forceIcon : undefined,
                             }
                         } catch {
                             // If the breadcrumb selector fails, we'll just ignore it and return a placeholder value below
@@ -544,7 +548,12 @@ export const sceneLogic = kea<sceneLogicType>([
                     return { title: '...', iconType: 'loading' }
                 },
             ],
-            (titleAndIcon) => titleAndIcon as { title: string; iconType: FileSystemIconType | 'loading' | 'blank' },
+            (titleAndIcon) =>
+                titleAndIcon as {
+                    title: string
+                    iconType: FileSystemIconType | 'loading' | 'blank'
+                    forceIcon?: JSX.Element
+                },
             { resultEqualityCheck: equal },
         ],
     }),
@@ -1021,7 +1030,7 @@ export const sceneLogic = kea<sceneLogicType>([
     }),
 
     subscriptions(({ actions, values, cache }) => ({
-        titleAndIcon: ({ title, iconType }) => {
+        titleAndIcon: ({ title, iconType, forceIcon }) => {
             const activeIndex = values.tabs.findIndex((t) => t.active)
             if (activeIndex === -1) {
                 const { currentLocation } = router.values
@@ -1034,6 +1043,7 @@ export const sceneLogic = kea<sceneLogicType>([
                         hash: currentLocation.hash,
                         title: title || 'Loading...',
                         iconType,
+                        forceIcon,
                     },
                 ])
             } else {
@@ -1041,7 +1051,9 @@ export const sceneLogic = kea<sceneLogicType>([
                     // When the tab is loading, don't flicker between the loaded title and the new one
                     return
                 }
-                const newTabs = values.tabs.map((tab, i) => (i === activeIndex ? { ...tab, title, iconType } : tab))
+                const newTabs = values.tabs.map((tab, i) =>
+                    i === activeIndex ? { ...tab, title, iconType, forceIcon } : tab
+                )
                 actions.setTabs(newTabs)
             }
             if (!process?.env?.STORYBOOK) {
