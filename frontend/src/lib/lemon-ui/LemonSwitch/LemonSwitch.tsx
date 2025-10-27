@@ -1,5 +1,6 @@
 import './LemonSwitch.scss'
 
+import clsx from 'clsx'
 import { forwardRef, useMemo, useState } from 'react'
 
 import { Spinner } from 'lib/lemon-ui/Spinner'
@@ -121,7 +122,7 @@ export const LemonSwitch: React.FunctionComponent<LemonSwitchProps & React.RefAt
         return (
             <div
                 ref={ref}
-                className={cn('LemonSwitch', className, `LemonSwitch--${size}`, {
+                className={clsx('LemonSwitch', className, `LemonSwitch--${size}`, {
                     'LemonSwitch--checked': checked,
                     'LemonSwitch--active': isActive,
                     'LemonSwitch--bordered': bordered,
