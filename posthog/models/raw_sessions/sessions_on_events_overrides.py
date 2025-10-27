@@ -17,7 +17,7 @@ Sessions overrides squashing is much simpler than person overrides squashing, th
 * We can use clickhouse's intermediate state types to make life easier for us
 """
 from posthog import settings
-from posthog.clickhouse.table_engines import Distributed
+from posthog.clickhouse.table_engines import AggregatingMergeTree, Distributed, ReplicationScheme
 from posthog.models.raw_sessions.sessions_v3 import SESSION_V3_LOWER_TIER_AD_IDS
 
 TABLE_BASE_NAME_V3 = "raw_sessions_overrides_v3"
@@ -66,12 +66,16 @@ CREATE TABLE IF NOT EXISTS {table_name}
 (
     team_id Int64,
     session_id_v7 UInt128,
+
     session_timestamp DateTime64 MATERIALIZED fromUnixTimestamp64Milli(toUInt64(bitShiftRight(session_id_v7, 80))),
     min_timestamp SimpleAggregateFunction(min, DateTime64(6, 'UTC')),
     max_timestamp SimpleAggregateFunction(max, DateTime64(6, 'UTC')),
+    pageview_prio_timestamp_min SimpleAggregateFunction(min, DateTime64(6, 'UTC')),
+    pageview_prio_timestamp_max SimpleAggregateFunction(max, DateTime64(6, 'UTC')),
     max_inserted_at SimpleAggregateFunction(max, DateTime64(6, 'UTC')),
 
     -- urls
+    has_pageview_or_screen SimpleAggregateFunction(max, Boolean), -- this makes it not a subset of the sessions table, but is needed to handle url logic
     entry_url AggregateFunction(argMin, Nullable(String), DateTime64(6, 'UTC')),
     end_url AggregateFunction(argMax, Nullable(String), DateTime64(6, 'UTC')),
     last_external_click_url AggregateFunction(argMax, Nullable(String), DateTime64(6, 'UTC')),
@@ -96,7 +100,8 @@ CREATE TABLE IF NOT EXISTS {table_name}
     entry_ad_ids_set AggregateFunction(argMin, Array(String), DateTime64(6, 'UTC')),
 
     -- bounce rate
-    page_screen_autocapture_uniq_up_to AggregateFunction(uniqUpTo(1), Nullable(UUID))
+    page_screen_autocapture_uniq_up_to AggregateFunction(groupUniqArray(2), Nullable(UUID)),
+
 ) ENGINE = {engine}
 """
 
@@ -143,19 +148,20 @@ PROPERTIES = f"""
 def RAW_SESSIONS_OVERRIDES_TABLE_MV_SELECT_SQL_V3(where="TRUE"):
     return """
 WITH
-    {PROPERTIES},
-    -- attribution properties from non-pageview/screen events should be deprioritized, so make the timestamp +/- 1 year so they sort last
-    if (event = '$pageview' OR event = '$screen', timestamp, timestamp + toIntervalYear(1)) as pageview_prio_timestamp_min,
-    if (event = '$pageview' OR event = '$screen', timestamp, timestamp - toIntervalYear(1)) as pageview_prio_timestamp_max
+    {PROPERTIES}
 SELECT
     team_id,
     `$session_id_uuid` AS session_id_v7,
 
     timestamp AS min_timestamp,
     timestamp AS max_timestamp,
+    -- attribution properties from non-pageview/screen events should be deprioritized, so make the timestamp +/- 1 year so they sort last
+    if (event = '$pageview' OR event = '$screen', timestamp, timestamp + toIntervalYear(1)) as pageview_prio_timestamp_min,
+    if (event = '$pageview' OR event = '$screen', timestamp, timestamp - toIntervalYear(1)) as pageview_prio_timestamp_max,
     inserted_at AS max_inserted_at,
 
     -- urls
+    (event = '$pageview' OR event = '$screen') as has_pageview_or_screen,
     initializeAggregation('argMinState', _current_url, pageview_prio_timestamp_min) as entry_url,
     initializeAggregation('argMaxState', _current_url, pageview_prio_timestamp_max) as end_url,
     initializeAggregation('argMaxState', _external_click_url, timestamp) as last_external_click_url,
@@ -180,7 +186,7 @@ SELECT
     initializeAggregation('argMinState', ad_ids_set, pageview_prio_timestamp_min) as entry_ad_ids_set,
 
     -- perf
-    initializeAggregation('uniqUpToState(1)', if(event='$pageview' OR event='$screen' OR event='$autocapture', uuid, NULL)) as page_screen_autocapture_uniq_up_to
+    initializeAggregation('groupUniqArrayState(2)', if(event='$pageview' OR event='$screen' OR event='$autocapture', uuid, NULL)) as page_screen_autocapture_uniq_up_to
 FROM {database}.sharded_events
 WHERE bitAnd(bitShiftRight(toUInt128(accurateCastOrNull(`$session_id`, 'UUID')), 76), 0xF) == 7 -- has a session id and is valid uuidv7
 AND {where}
@@ -191,8 +197,29 @@ AND {where}
     )
 
 
+def SHARDED_RAW_SESSION_OVERRIDES_DATA_TABLE_ENGINE_V3():
+    return AggregatingMergeTree(TABLE_BASE_NAME_V3, replication_scheme=ReplicationScheme.SHARDED)
 
-def RAW_SESSIONS_OVERRIDES_TABLE_MV_SQL_V3(where="TRUE"):
+
+def SHARDED_RAW_SESSION_OVERRIDES_TABLE_SQL_V3():
+    return (
+        RAW_SESSIONS_OVERRIDES_TABLE_BASE_SQL_V3
+        + """
+PARTITION BY toYYYYMM(session_timestamp)
+ORDER BY (
+    team_id,
+    session_timestamp,
+    session_id_v7
+)
+"""
+    ).format(
+        table_name=SHARDED_RAW_SESSIONS_OVERRIDES_TABLE_V3(),
+        engine=SHARDED_RAW_SESSION_OVERRIDES_DATA_TABLE_ENGINE_V3(),
+    )
+
+
+
+def RAW_SESSION_OVERRIDES_TABLE_MV_SQL_V3(where="TRUE"):
     return """
 CREATE MATERIALIZED VIEW IF NOT EXISTS {table_name}
 TO {database}.{target_table}
@@ -249,7 +276,7 @@ def DISTRIBUTED_RAW_SESSIONS_OVERRIDES_TABLE_SQL_V3():
     )
 
 # this view isn't used in production, but it's very useful for testing, and there's almost no overhead to keeping it around
-RAW_SESSIONS_OVERRIDES_CREATE_OR_REPLACE_VIEW_SQL_V3 = (
+RAW_SESSION_OVERRIDES_CREATE_OR_REPLACE_VIEW_SQL_V3 = (
     lambda: f"""
 CREATE OR REPLACE VIEW {TABLE_BASE_NAME_V3}_v AS
 SELECT
@@ -260,8 +287,11 @@ SELECT
     min(min_timestamp) as min_timestamp,
     max(max_timestamp) as max_timestamp,
     max(max_inserted_at) as max_inserted_at,
+    min(pageview_prio_timestamp_min) as pageview_prio_timestamp_min,
+    max(pageview_prio_timestamp_max) as pageview_prio_timestamp_max,
 
     -- urls
+    max(has_pageview_or_screen) as has_pageview_or_screen,
     argMinMerge(entry_url) as entry_url,
     argMaxMerge(end_url) as end_url,
     argMaxMerge(last_external_click_url) as last_external_click_url,
@@ -283,12 +313,81 @@ SELECT
     argMinMerge(entry_ad_ids_map) as entry_ad_ids_map,
     argMinMerge(entry_ad_ids_set) as entry_ad_ids_set,
 
-    -- perf
-    uniqUpToMerge(1)(page_screen_autocapture_uniq_up_to) as page_screen_autocapture_uniq_up_to,
+    -- bounce rate
+    groupUniqArrayMerge(2)(page_screen_autocapture_uniq_up_to) as page_screen_autocapture_uniq_up_to
 FROM {settings.CLICKHOUSE_DATABASE}.{DISTRIBUTED_RAW_SESSIONS_OVERRIDES_TABLE_V3()}
 GROUP BY session_id_v7, session_timestamp, team_id
 """
 )
 
-RAW_SESSION_OVERRIDES_SQUASH_
 
+"""
+There are 2 input variables into the squashing process:
+* The squash_before timestamp - this is a time where any event inserted before this time should *definitely* be propagated to the events and sessions table. We can use the timestamp of the dagster job minus 2 days.
+* The time window to squash. Technically we could squash all data in one go, but it's more manageable to do it in smaller chunks. This could be one partition in the events table (1 month).
+
+The actual squashing process then does 2 steps:
+* Copy the data from the session overrides table into the relevant columns on the events table, from session rows where max_inserted_at < squash_before
+* Delete all rows from the session overrides table which have max_inserted_at < squash_before
+
+Some notes:
+* Step 1 is idempotent, the events table always wants argMin/argMax values (s.g. the url with the highest timestamp), so running the step multiple times with the same data is safe. This is especially useful while backfilling historical data.
+* We don't technically need to limit step 1 by max_inserted_at < squash_before, due to idempotency, but it reduces the amount of rows updated.
+* Step 2 should only happen after step 1 is fully complete and that data would show up in queries.
+* The event timestamp must be pretty close to the session timestamp (session timestamp <= event timestamp < session timestamp + 24 hours), this means that partitioning the sessions by time will also limit the time range of affected events
+"""
+
+# this doesn't work, it's not the right syntax. Instead try dict
+# def RAW_SESSION_OVERRIDES_SQUASH_COPY_SQL(squash_before: str, start_date: str, end_date: str, where="TRUE"):
+#     return """
+# ALTER TABLE {database}.{events_table}
+# UPDATE
+#     soe_min_timestamp = ifNull(min(soe_min_timestamp, s.min_timestamp), s.min_timestamp), -- which takes priority in later statements? old or new value?
+#     soe_max_timestamp = ifNull(max(soe_max_timestamp, s.max_timestamp), s.max_timestamp),
+#     soe_pageview_prio_timestamp_min = ifNull(min(soe_pageview_prio_timestamp_min, s.pageview_prio_timestamp_min), s.pageview_prio_timestamp_min),
+#     soe_pageview_prio_timestamp_max = ifNull(max(soe_pageview_prio_timestamp_max, s.pageview_prio_timestamp_max), s.pageview_prio_timestamp_max),
+#
+#     -- the timestamps on the events can be null, which makes the comparison null or falsey, so it should be if(cond, event, session)
+#     soe_entry_url = if(s.soe_pageview_prio_timestamp_min < s.pageview_prio_timestamp_min, soe_entry_url, s.entry_url),
+#     soe_end_url = if(s.soe_pageview_prio_timestamp_max > s.pageview_prio_timestamp_max, soe_end_url, s.end_url),
+#     soe_last_external_click_url = if(s.soe_max_timestamp > s.max_timestamp, soe_last_external_click_url, s.last_external_click_url),
+#
+#     -- attribution
+#     soe_entry_referring_domain = if(s.soe_pageview_prio_timestamp_min < s.pageview_prio_timestamp_min, soe_entry_referring_domain, s.entry_referring_domain),
+#     soe_entry_utm_source = if(s.soe_pageview_prio_timestamp_min < s.pageview_prio_timestamp_min, soe_entry_utm_source, s.entry_utm_source),
+#     soe_entry_utm_campaign = if(s.soe_pageview_prio_timestamp_min < s.pageview_prio_timestamp_min, soe_entry_utm_campaign, s.entry_utm_campaign),
+#     soe_entry_utm_medium = if(s.soe_pageview_prio_timestamp_min < s.pageview_prio_timestamp_min, soe_entry_utm_medium, s.entry_utm_medium),
+#     soe_entry_utm_term = if(s.soe_pageview_prio_timestamp_min < s.pageview_prio_timestamp_min, soe_entry_utm_term, s.entry_utm_term),
+#     soe_entry_utm_content = if(s.soe_pageview_prio_timestamp_min < s.pageview_prio_timestamp_min, soe_entry_utm_content, s.entry_utm_content),
+#     soe_entry_gclid = if(s.soe_pageview_prio_timestamp_min < s.pageview_prio_timestamp_min, soe_entry_gclid, s.entry_gclid),
+#     soe_entry_gad_source = if(s.soe_pageview_prio_timestamp_min < s.pageview_prio_timestamp_min, soe_entry_gad_source, s.entry_gad_source),
+#     soe_entry_fbclid = if(s.soe_pageview_prio_timestamp_min < s.pageview_prio_timestamp_min, soe_entry_fbclid, s.entry_fbclid),
+#
+#     -- for channel type calculation, it's enough to know if these were present
+#     soe_entry_has_gclid = if(s.soe_pageview_prio_timestamp_min < s.pageview_prio_timestamp_min, soe_entry_has_gclid, s.entry_has_gclid),
+#     soe_entry_has_fbclid = if(s.soe_pageview_prio_timestamp_min < s.pageview_prio_timestamp_min, soe_entry_has_fbclid, s.entry_has_fbclid),
+#
+#     -- for lower-tier ad ids, just put them in a map, and set of the ones present
+#     soe_entry_ad_ids_map = if(s.soe_pageview_prio_timestamp_min < s.pageview_prio_timestamp_min, soe_entry_ad_ids_map, s.entry_ad_ids_map),
+#     soe_entry_ad_ids_set = if(s.soe_pageview_prio_timestamp_min < s.pageview_prio_timestamp_min, soe_entry_ad_ids_set, s.entry_ad_ids_set),
+#
+#     -- bounce rate
+#     soe_page_screen_autocapture_uniq_up_to = arrayResize(arrayDistinct(arrayConcat(ifNull(soe_page_screen_autocapture_uniq_up_to, []), s.page_screen_autocapture_uniq_up_to)), 2)
+# FROM {database}.{sessions_overrides_table} AS s
+# WHERE team_id = s.team_id AND `$session_id_uuid` = s.session_id_v7
+# AND s.max_inserted_at < {squash_before}
+# AND timestamp >= {start_date} - toIntervalDay(3)
+# AND timestamp < {end_date} + toIntervalDay(3)
+# AND s.session_timestamp >= {start_date}
+# AND s.session_timestamp < {end_date}
+# AND {where}
+#
+# """.format(
+#         database=settings.CLICKHOUSE_DATABASE,
+#         events_table="sharded_events",
+#         sessions_overrides_table=SHARDED_RAW_SESSIONS_OVERRIDES_TABLE_V3(),
+#         squash_before=squash_before,
+#         start_date=start_date,
+#         end_date=end_date,
+#         where=where,
+#     )
