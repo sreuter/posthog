@@ -36,6 +36,7 @@ import {
     HogQLVariable,
     LogMessage,
     LogsQuery,
+    MatchingEventsResponse,
     Node,
     NodeKind,
     PersistedFolder,
@@ -3088,7 +3089,7 @@ const api = {
         async list(params: RecordingsQuery): Promise<RecordingsQueryResponse> {
             return await new ApiRequest().recordings().withQueryString(toParams(params)).get()
         },
-        async getMatchingEvents(params: string): Promise<{ results: string[] }> {
+        async getMatchingEvents(params: string): Promise<MatchingEventsResponse> {
             return await new ApiRequest().recordingMatchingEvents().withQueryString(params).get()
         },
         async get(

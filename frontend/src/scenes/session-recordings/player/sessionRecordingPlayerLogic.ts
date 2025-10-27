@@ -442,8 +442,15 @@ export const sessionRecordingPlayerLogic = kea<sessionRecordingPlayerLogicType>(
         setIsHovering: (isHovering: boolean) => ({ isHovering }),
         allowPlayerChromeToHide: true,
         setMuted: (muted: boolean) => ({ muted }),
+        setSkipToFirstMatchingEvent: (skipToFirstMatchingEvent: boolean) => ({ skipToFirstMatchingEvent }),
     }),
     reducers(({ props }) => ({
+        skipToFirstMatchingEvent: [
+            false,
+            {
+                setSkipToFirstMatchingEvent: (_, { skipToFirstMatchingEvent }) => skipToFirstMatchingEvent,
+            },
+        ],
         showingClipParams: [
             false as boolean,
             {
@@ -1264,6 +1271,8 @@ export const sessionRecordingPlayerLogic = kea<sessionRecordingPlayerLogicType>(
                     } else if (searchParams.t) {
                         const desiredStartTime = Number(searchParams.t) * 1000
                         actions.seekToTime(desiredStartTime)
+                    } else {
+                        actions.setSkipToFirstMatchingEvent(true)
                     }
                 }
 
