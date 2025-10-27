@@ -177,9 +177,7 @@ class Table(FieldOrTable):
         return asterisk
 
 
-class TableNode(
-    BaseModel,
-):
+class TableNode(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     name: Literal["root"] | str = "root"  # Default to root for ease of use
