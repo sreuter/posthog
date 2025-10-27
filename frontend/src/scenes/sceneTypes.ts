@@ -183,7 +183,6 @@ export interface SceneTab {
     active: boolean
     customTitle?: string
     iconType: FileSystemIconType | 'loading' | 'blank'
-    forceIcon?: JSX.Element
 
     sceneId?: string
     sceneKey?: string

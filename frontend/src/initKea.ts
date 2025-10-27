@@ -85,11 +85,13 @@ export function initKea({
                 // This state is persisted into window.history
                 const logic = sceneLogic.findMounted()
                 if (logic) {
+                    // Remove forceIcon from tabs before cloning/serializing since JSX elements can't be cloned
+                    const serializableTabs = logic.values.tabs.map(({ forceIcon, ...tab }) => tab)
                     if (typeof structuredClone !== 'undefined') {
-                        return { tabs: structuredClone(logic.values.tabs) }
+                        return { tabs: structuredClone(serializableTabs) }
                     }
                     // structuredClone fails in jest for some reason, despite us being on the right versions
-                    return { tabs: JSON.parse(JSON.stringify(logic.values.tabs)) || [] }
+                    return { tabs: JSON.parse(JSON.stringify(serializableTabs)) || [] }
                 }
                 return undefined
             },

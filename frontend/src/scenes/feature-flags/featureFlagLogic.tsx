@@ -2,9 +2,6 @@ import { actions, afterMount, connect, kea, key, listeners, path, props, reducer
 import { DeepPartialMap, ValidationErrorType, forms } from 'kea-forms'
 import { loaders } from 'kea-loaders'
 import { router, urlToAction } from 'kea-router'
-import { CSSProperties } from 'react'
-
-import { LemonSwitch } from '@posthog/lemon-ui'
 
 import api, { PaginatedResponse } from 'lib/api'
 import { FEATURE_FLAGS } from 'lib/constants'
@@ -1347,11 +1344,7 @@ export const featureFlagLogic = kea<featureFlagLogicType>([
                 {
                     key: [Scene.FeatureFlag, featureFlag.id || 'unknown'],
                     name: featureFlag.key || (!featureFlag.id ? 'New feature flag' : 'Unnamed'),
-                    forceIcon: (
-                        <div style={{ '--color-accent': 'var(--color-product-feature-flags-light)' } as CSSProperties}>
-                            <LemonSwitch checked={featureFlag.active} size="xxsmall" className="pointer-events-none" />
-                        </div>
-                    ),
+                    iconType: featureFlag.active ? 'feature_flag' : 'feature_flag_off',
                 },
             ],
         ],
