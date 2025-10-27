@@ -5,7 +5,7 @@ import { Form, Group } from 'kea-forms'
 import { router } from 'kea-router'
 import posthog from 'posthog-js'
 import { PostHogFeature } from 'posthog-js/react'
-import { CSSProperties, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import {
     IconCollapse,
@@ -376,23 +376,7 @@ export function FeatureFlag({ id }: FeatureFlagLogicProps): JSX.Element {
                         <SceneTitleSection
                             name={featureFlag.key}
                             resourceType={{
-                                type: 'feature_flag',
-                                forceIcon: (
-                                    <div
-                                        style={
-                                            {
-                                                // We override the LemonSwitch color to match the product icon color
-                                                '--color-accent': 'var(--color-product-feature-flags-light)',
-                                            } as CSSProperties
-                                        }
-                                    >
-                                        <LemonSwitch
-                                            className="pointer-events-none mt-px"
-                                            size="small"
-                                            checked={featureFlag.active}
-                                        />
-                                    </div>
-                                ),
+                                type: featureFlag.active ? 'feature_flag' : 'feature_flag_off',
                             }}
                             actions={
                                 <>
@@ -800,23 +784,7 @@ export function FeatureFlag({ id }: FeatureFlagLogicProps): JSX.Element {
                                 name={featureFlag.key}
                                 description={featureFlag.name}
                                 resourceType={{
-                                    type: 'feature_flag',
-                                    forceIcon: (
-                                        <div
-                                            style={
-                                                {
-                                                    // We override the LemonSwitch color to match the product icon color
-                                                    '--color-accent': 'var(--color-product-feature-flags-light)',
-                                                } as CSSProperties
-                                            }
-                                        >
-                                            <LemonSwitch
-                                                className="pointer-events-none mt-px"
-                                                size="small"
-                                                checked={featureFlag.active}
-                                            />
-                                        </div>
-                                    ),
+                                    type: featureFlag.active ? 'feature_flag' : 'feature_flag_off',
                                 }}
                                 actions={
                                     <>

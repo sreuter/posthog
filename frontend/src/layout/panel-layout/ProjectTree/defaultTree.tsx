@@ -138,11 +138,11 @@ const iconTypes: Record<FileSystemIconType, { icon: JSX.Element; iconColor?: Fil
         iconColor: ['var(--color-product-experiments-light)'],
     },
     feature_flag: {
-        icon: <IconToggle />,
+        icon: <IconToggle className="mt-1" />,
         iconColor: ['var(--color-product-feature-flags-light)'],
     },
     feature_flag_off: {
-        icon: <IconToggleOff />,
+        icon: <IconToggleOff className="mt-1" />,
         iconColor: ['var(--color-bg-fill-switch)'],
     },
     data_pipeline: {
