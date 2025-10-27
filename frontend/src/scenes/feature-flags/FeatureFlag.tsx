@@ -381,12 +381,13 @@ export function FeatureFlag({ id }: FeatureFlagLogicProps): JSX.Element {
                                     <div
                                         style={
                                             {
+                                                // We override the LemonSwitch color to match the product icon color
                                                 '--color-accent': 'var(--color-product-feature-flags-light)',
                                             } as CSSProperties
                                         }
                                     >
                                         <LemonSwitch
-                                            className="pointer-events-none"
+                                            className="pointer-events-none mt-px"
                                             size="small"
                                             checked={featureFlag.active}
                                         />
@@ -804,12 +805,13 @@ export function FeatureFlag({ id }: FeatureFlagLogicProps): JSX.Element {
                                         <div
                                             style={
                                                 {
+                                                    // We override the LemonSwitch color to match the product icon color
                                                     '--color-accent': 'var(--color-product-feature-flags-light)',
                                                 } as CSSProperties
                                             }
                                         >
                                             <LemonSwitch
-                                                className="pointer-events-none"
+                                                className="pointer-events-none mt-px"
                                                 size="small"
                                                 checked={featureFlag.active}
                                             />

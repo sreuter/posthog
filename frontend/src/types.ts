@@ -4057,6 +4057,7 @@ interface BreadcrumbBase {
     /** Whether to show a custom popover for the project */
     isPopoverProject?: boolean
     iconType?: FileSystemIconType | 'blank' | 'loading'
+    /** When this is set, the icon is replaced with the given element. */
     forceIcon?: JSX.Element
 }
 export interface LinkBreadcrumb extends BreadcrumbBase {
