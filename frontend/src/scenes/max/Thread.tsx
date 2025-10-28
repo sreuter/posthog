@@ -600,7 +600,11 @@ function PlanningAnswer({ toolCall, isLastPlanningMessage = true }: PlanningAnsw
 
     return (
         <div className="flex flex-col">
-            <div className="flex items-center">
+            <div
+                className={clsx('flex items-center', !hasMultipleSteps ? 'cursor-default' : 'cursor-pointer')}
+                onClick={!hasMultipleSteps ? undefined : () => setIsExpanded(!isExpanded)}
+                aria-label={!hasMultipleSteps ? undefined : isExpanded ? 'Collapse plan' : 'Expand plan'}
+            >
                 <div className="relative flex-shrink-0 flex items-start justify-center size-6 h-full">
                     <div className="p-1 flex items-center justify-center">
                         <IconNotebook />
@@ -612,11 +616,7 @@ function PlanningAnswer({ toolCall, isLastPlanningMessage = true }: PlanningAnsw
                         ({completedCount}/{totalCount})
                     </span>
                     {hasMultipleSteps && (
-                        <button
-                            onClick={() => setIsExpanded(!isExpanded)}
-                            className="cursor-pointer inline-flex items-center hover:opacity-70 transition-opacity flex-shrink-0"
-                            aria-label={isExpanded ? 'Collapse plan' : 'Expand plan'}
-                        >
+                        <button className="cursor-pointer inline-flex items-center hover:opacity-70 transition-opacity flex-shrink-0">
                             <span className={`transform transition-transform ${isExpanded ? 'rotate-90' : ''}`}>
                                 <IconChevronRight />
                             </span>
@@ -731,8 +731,11 @@ function AssistantActionComponent({
                 className={clsx(
                     'transition-all duration-500 flex',
                     (isPending || isFailed) && 'text-muted',
-                    !isInProgress && !isPending && !isFailed && 'text-default'
+                    !isInProgress && !isPending && !isFailed && 'text-default',
+                    !showChevron ? 'cursor-default' : 'cursor-pointer'
                 )}
+                onClick={!showChevron ? undefined : () => setIsExpanded(!isExpanded)}
+                aria-label={!showChevron ? undefined : isExpanded ? 'Collapse history' : 'Expand history'}
             >
                 {icon && (
                     <div className="flex items-center justify-center size-6">
@@ -754,12 +757,8 @@ function AssistantActionComponent({
                     {isCompleted && showCompletionIcon && <IconCheck className="text-success size-3" />}
                     {isFailed && showCompletionIcon && <IconX className="text-danger size-3" />}
                     {showChevron && (
-                        <div className="relative flex-shrink-0 flex items-start justify-center h-full pt-0.5">
-                            <button
-                                onClick={() => setIsExpanded(!isExpanded)}
-                                className="cursor-pointer inline-flex items-center hover:opacity-70 transition-opacity flex-shrink-0"
-                                aria-label={isExpanded ? 'Collapse history' : 'Expand history'}
-                            >
+                        <div className="relative flex-shrink-0 flex items-start justify-center h-full pt-px">
+                            <button className="inline-flex items-center hover:opacity-70 transition-opacity flex-shrink-0 cursor-pointer">
                                 <span className={clsx('transform transition-transform', isExpanded && 'rotate-90')}>
                                     <IconChevronRight />
                                 </span>
