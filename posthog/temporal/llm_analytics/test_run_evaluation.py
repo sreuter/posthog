@@ -19,7 +19,6 @@ from .run_evaluation import (
 
 
 @pytest.fixture
-@pytest.mark.django_db
 def setup_data(db):
     """Create test organization, team, and evaluation"""
     organization = Organization.objects.create(name="Test Org")

@@ -9,7 +9,7 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        # Step 3: Make new fields non-nullable
+        # Step 3: Make new fields non-nullable and old prompt field nullable
         # Separated from data migration to avoid lock contention
         migrations.AlterField(
             model_name="evaluation",
@@ -36,5 +36,11 @@ class Migration(migrations.Migration):
             model_name="evaluation",
             name="output_config",
             field=models.JSONField(default=dict),
+        ),
+        # Make prompt field nullable (will be removed in a future migration)
+        migrations.AlterField(
+            model_name="evaluation",
+            name="prompt",
+            field=models.TextField(null=True, blank=True),
         ),
     ]
